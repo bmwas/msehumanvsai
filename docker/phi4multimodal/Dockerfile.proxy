@@ -1,0 +1,60 @@
+# =============================================================================
+# Dockerfile for Phi-4 Multimodal Compatibility Proxy
+# =============================================================================
+# This proxy converts video_url content to image frames for compatibility
+# with the Phi-4-multimodal-instruct model which only supports images.
+#
+# Build:
+#   docker build -f Dockerfile.proxy -t phi4-proxy .
+#
+# Run (standalone):
+#   docker run -p 5200:5200 \
+#     -e VLLM_BACKEND_URL=http://vllm-backend:8000 \
+#     phi4-proxy
+# =============================================================================
+
+FROM python:3.11-slim
+
+# Install system dependencies for OpenCV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY proxy/requirements.txt /app/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY proxy/app.py /app/app.py
+COPY proxy/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Environment defaults
+ENV PROXY_PORT=5200 \
+    VLLM_BACKEND_URL=http://localhost:8000 \
+    VLLM_REQUEST_TIMEOUT=600 \
+    VIDEO_MAX_FRAMES=8 \
+    FRAME_JPEG_QUALITY=85 \
+    FRAME_MAX_DIMENSION=1024 \
+    LOG_LEVEL=INFO
+
+# Expose the proxy port
+EXPOSE 5200
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:5200/health', timeout=5)" || exit 1
+
+# Run the proxy
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,0 +1,53 @@
+# =============================================================================
+# Qwen3-Omni 4-bit Quantization Requirements
+# =============================================================================
+# 
+# CRITICAL: Install in order using setup_quantization_env.sh or quantize.sh
+# These scripts handle the correct installation order and --no-deps flags.
+#
+# This matches cpatonn/Qwen3-Omni-30B-A3B-Thinking-AWQ-4bit EXACTLY:
+# - compressed-tensors==0.11.0 (from quantization_config.version in cpatonn's config.json)
+# - llmcompressor==0.7.1 (uses compressed-tensors 0.11.0)
+# - transformers==4.57.0.dev0 (EXACT version from cpatonn's config.json transformers_version)
+#   NOTE: This is installed from GitHub, not PyPI
+# =============================================================================
+
+# --- Step 1: PyTorch (required for everything) ---
+torch==2.7.0
+torchvision==0.22.0
+torchaudio==2.7.0
+
+# --- Step 2: Transformers (matches cpatonn's 4.57.0.dev0) ---
+# NOTE: cpatonn used transformers 4.57.0.dev0 (dev version from GitHub)
+# We install from v4.57.0 tag which gives 4.57.0 (stable release)
+# The quantization OUTPUT format is determined by compressed-tensors 0.11.0 (which matches exactly)
+# The transformers version affects model loading, but quantization output is identical
+# To get exactly 4.57.0.dev0, we'd need a specific commit hash (complex to find)
+git+https://github.com/huggingface/transformers.git@v4.57.0
+
+# --- Step 3: CRITICAL - compressed-tensors 0.11.0 (must be before llmcompressor) ---
+# This is the EXACT version used by cpatonn (from config.json quantization_config.version)
+compressed-tensors==0.11.0
+
+# --- Step 4: llmcompressor dependencies (install before llmcompressor with --no-deps) ---
+datasets>=4.0.0,<5.0
+accelerate>=1.0.0
+pydantic>=2.0
+loguru
+pynvml
+nvidia-ml-py
+frozendict
+
+# --- Step 5: llmcompressor 0.7.1 (uses compressed-tensors 0.11.0) ---
+# NOTE: Install with --no-deps to avoid transformers version conflict
+# pip install --no-deps llmcompressor==0.7.1
+llmcompressor==0.7.1
+
+# --- Step 6: Utilities ---
+python-dotenv
+sentencepiece
+protobuf
+psutil
+
+# --- Step 7: numpy (llmcompressor 0.7.1 works with numpy>=2.0) ---
+numpy>=2.0

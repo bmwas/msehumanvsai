@@ -1,0 +1,144 @@
+# =============================================================================
+# Phi-4 Multimodal vLLM Server - Docker Compose
+# =============================================================================
+#
+# This compose file runs two services:
+#   1. vllm-backend: The vLLM OpenAI-compatible server with Phi-4-multimodal
+#   2. phi4-api: Compatibility proxy that converts video_url to image frames
+#
+# GPU Setup:
+#   - Uses GPU device 1 (Ada RTX 6000 48GB)
+#   - GPU 0 (Blackwell) is left free for other workloads
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f
+#
+# Client usage:
+#   python run_all_surveys_longitudinal.py \
+#     --api-url http://localhost:5200 \
+#     --model microsoft/Phi-4-multimodal-instruct \
+#     --patients ben --all-timepoints
+#
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # vLLM Backend Service
+  # ===========================================================================
+  # Runs the Phi-4-multimodal-instruct model with LoRA adapters
+  # Internal port 8000, not exposed to host (proxy handles external access)
+  # ===========================================================================
+  vllm-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.vllm
+    
+    image: phi4-vllm-backend:latest
+    container_name: phi4-vllm-backend
+    
+    environment:
+      - HF_TOKEN=${HUGGINGFACE_TOKEN}
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - MODEL_PATH=${MODEL_PATH:-microsoft/Phi-4-multimodal-instruct}
+      - VLLM_INTERNAL_PORT=${VLLM_INTERNAL_PORT:-8000}
+      - GPU_MEMORY_UTILIZATION=${GPU_MEMORY_UTILIZATION:-0.90}
+      - MAX_MODEL_LEN=${MAX_MODEL_LEN:-32768}
+      - MAX_NUM_SEQS=${MAX_NUM_SEQS:-8}
+      - MAX_NUM_BATCHED_TOKENS=${MAX_NUM_BATCHED_TOKENS:-65536}
+      - MAX_LORA_RANK=${MAX_LORA_RANK:-320}
+      - MAX_LORAS=${MAX_LORAS:-2}
+      - LORA_EXTRA_VOCAB_SIZE=${LORA_EXTRA_VOCAB_SIZE:-0}
+      - LIMIT_AUDIO_PER_PROMPT=${LIMIT_AUDIO_PER_PROMPT:-1}
+      - LIMIT_IMAGE_PER_PROMPT=${LIMIT_IMAGE_PER_PROMPT:-8}
+      - VLLM_USE_EAGER=${VLLM_USE_EAGER:-true}
+      - VLLM_USE_V1=${VLLM_USE_V1:-0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:512,expandable_segments:True}
+      - NVIDIA_TF32_OVERRIDE=${NVIDIA_TF32_OVERRIDE:-1}
+      - CUDA_VISIBLE_DEVICES=0
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      # Use local models directory instead of root cache
+      - HF_HOME=/app/models
+      - TRANSFORMERS_CACHE=/app/models
+      - HF_HUB_CACHE=/app/models/hub
+    
+    volumes:
+      # Mount local models directory - models are downloaded here
+      - ./models:/app/models
+    
+    # GPU Configuration: Use device 1 (Ada RTX 6000 48GB)
+    # Inside the container, it appears as device 0 due to CUDA_VISIBLE_DEVICES
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${PHI4_GPU_DEVICE:-1}"]
+              capabilities: [gpu]
+    
+    # Shared memory for PyTorch
+    shm_size: '8g'
+    ipc: host
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s  # 5 minutes for model loading
+    
+    restart: unless-stopped
+    
+    networks:
+      - phi4-network
+
+  # ===========================================================================
+  # Phi-4 API Proxy Service
+  # ===========================================================================
+  # Converts video_url to image frames for Phi-4 compatibility
+  # Exposed on port 5200 (clients connect here)
+  # ===========================================================================
+  phi4-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    
+    image: phi4-proxy:latest
+    container_name: phi4-api
+    
+    environment:
+      - PROXY_PORT=5200
+      - VLLM_BACKEND_URL=http://vllm-backend:8000
+      - VLLM_REQUEST_TIMEOUT=${VLLM_REQUEST_TIMEOUT:-600}
+      - VIDEO_MAX_FRAMES=${VIDEO_MAX_FRAMES:-8}
+      - FRAME_JPEG_QUALITY=${FRAME_JPEG_QUALITY:-85}
+      - FRAME_MAX_DIMENSION=${FRAME_MAX_DIMENSION:-1024}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WAIT_FOR_BACKEND=true
+      - BACKEND_WAIT_RETRIES=120
+      - BACKEND_WAIT_INTERVAL=5
+    
+    ports:
+      - "${PHI4_PORT:-5200}:5200"
+    
+    depends_on:
+      vllm-backend:
+        condition: service_started
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:5200/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    restart: unless-stopped
+    
+    networks:
+      - phi4-network
+
+networks:
+  phi4-network:
+    driver: bridge

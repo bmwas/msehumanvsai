@@ -1,0 +1,118 @@
+# =============================================================================
+# Qwen3-Omni Configuration for Blackwell GPU (RTX PRO 6000, 96GB VRAM)
+# =============================================================================
+#
+# USAGE:
+#   cp example_env.txt .env
+#   # Edit .env with your HuggingFace token and model path
+#   docker compose up
+# =============================================================================
+
+# =============================================================================
+# GPU SELECTION
+# =============================================================================
+# Blackwell compose/script use host GPU 0. This is for build_and_run_blackwell.sh
+# auto-detection fallback; compose hardcodes device 0.
+GPU_INDEX=0
+
+# =============================================================================
+# MODEL CONFIGURATION
+# =============================================================================
+# Full-precision model (requires 96GB VRAM)
+MODEL_PATH=Qwen/Qwen3-Omni-30B-A3B-Thinking
+
+# Quantization: leave empty for full-precision inference
+# For 4-bit quantized variant (sensitivity analysis): set MODEL_PATH=Benson/Qwen3-Omni-30B-Thinking-4bit
+QUANTIZATION=
+
+# =============================================================================
+# MEMORY CONFIGURATION - FOR 96GB VRAM (Blackwell)
+# =============================================================================
+# GPU memory utilization (0.0-1.0)
+# For 96GB Blackwell, 0.92-0.95 is safe
+GPU_MEMORY_UTILIZATION=0.92
+
+# Context window size (max tokens)
+# 65536 = model max_position_embeddings (safe). 131072 requires VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 in the container.
+MAX_MODEL_LEN=65536
+
+# =============================================================================
+# BATCHING & THROUGHPUT - FOR 96GB VRAM
+# =============================================================================
+# Maximum parallel sequences (higher = better GPU utilization)
+MAX_NUM_SEQS=32
+
+# Maximum batched tokens (typically 2-4x MAX_MODEL_LEN)
+MAX_NUM_BATCHED_TOKENS=131072
+
+# Enable chunked prefill for better batching (recommended: true)
+ENABLE_CHUNKED_PREFILL=true
+
+# =============================================================================
+# VIDEO PROCESSING - FOR 96GB VRAM
+# =============================================================================
+# 96GB allows more frames and higher resolution (Maximum Quality tier for 96GB)
+VIDEO_MAX_FRAMES=40
+VIDEO_MIN_FRAMES=32
+VIDEO_MAX_FPS=3
+VIDEO_MAX_WIDTH=320
+VIDEO_MAX_HEIGHT=320
+
+# Enable video downsampling (recommended: true)
+ENABLE_VIDEO_DOWNSAMPLE=true
+
+# =============================================================================
+# SEGMENT ANALYSIS (Client-side)
+# =============================================================================
+SEGMENT_DURATION=30
+SEGMENT_OVERLAP=10
+
+# =============================================================================
+# API SERVER
+# =============================================================================
+# Blackwell uses port 5100 (default stack uses 5000)
+PORT=5100
+
+# Request timeout in seconds
+REQUEST_TIMEOUT=1200
+
+# =============================================================================
+# TOKEN LIMITS
+# =============================================================================
+# Server default when client does not send max_tokens (avoids chopped responses).
+# 40960 gives room for long <think>...</think> plus final answer. Safe for ~5 concurrent videos.
+DEFAULT_MAX_TOKENS=40960
+
+# Per-request floor: if client sends max_tokens below this, server uses this (avoids truncation before </think>).
+MIN_MAX_TOKENS=32768
+
+MAX_SEGMENT_OUTPUT_TOKENS=2048
+META_MAX_TOKENS=4096
+
+# Sampling temperature (0.1 = near-deterministic, good for clinical assessment)
+TEMPERATURE=0.1
+
+# Rolling context character limit
+MAX_ROLLING_CONTEXT_CHARS=8000
+
+# =============================================================================
+# HUGGING FACE AUTHENTICATION (if using gated models)
+# =============================================================================
+HUGGINGFACE_TOKEN=your_hf_token_here
+HUGGINGFACE_USER=your_username
+
+# =============================================================================
+# WANDB TELEMETRY (optional, zero-overhead per-request metrics for optimization)
+# =============================================================================
+# Set WANDB_API_KEY to enable; leave empty to disable. Logs prompt_tokens, completion_tokens,
+# inference_ms, queue_wait_ms, finish_reason, etc. to Weights & Biases for tuning parameters.
+WANDB_API_KEY=
+WANDB_PROJECT=qwen3omni-blackwell
+WANDB_MODE=online
+
+# =============================================================================
+# PERFORMANCE TUNING
+# =============================================================================
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+AUDIO_PLACEHOLDER_LIMIT=3
+TOKEN_SAFETY_MARGIN=2000

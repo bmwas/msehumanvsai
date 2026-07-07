@@ -1,0 +1,14 @@
+# Phi-4 Multimodal Compatibility Proxy Dependencies
+
+# Web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# HTTP client for backend requests
+httpx>=0.25.0
+
+# Video processing
+opencv-python-headless>=4.8.0
+
+# NumPy for image arrays
+numpy>=1.24.0

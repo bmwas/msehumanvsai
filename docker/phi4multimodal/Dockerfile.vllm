@@ -1,0 +1,57 @@
+# =============================================================================
+# Dockerfile for Phi-4 Multimodal vLLM Backend
+# =============================================================================
+# Based on vllm/vllm-openai with custom entrypoint for LoRA auto-discovery
+#
+# Build:
+#   docker build -f Dockerfile.vllm -t phi4-vllm-backend .
+#
+# Run (standalone):
+#   docker run --gpus "device=1" -p 8000:8000 \
+#     -v ./models:/app/models \
+#     -e HF_TOKEN=${HUGGINGFACE_TOKEN} \
+#     phi4-vllm-backend
+#
+# Models are stored in ./models (mounted as /app/models in container)
+# =============================================================================
+
+FROM vllm/vllm-openai:latest
+
+# Install audio support for vLLM multimodal
+RUN pip install --no-cache-dir 'vllm[audio]'
+
+# Set working directory
+WORKDIR /app
+
+# Create models directory
+RUN mkdir -p /app/models/hub
+
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Environment defaults (can be overridden at runtime)
+# Models are stored in /app/models (mounted from ./models on host)
+ENV MODEL_PATH=microsoft/Phi-4-multimodal-instruct \
+    HF_HOME=/app/models \
+    TRANSFORMERS_CACHE=/app/models \
+    HF_HUB_CACHE=/app/models/hub \
+    VLLM_INTERNAL_PORT=8000 \
+    GPU_MEMORY_UTILIZATION=0.90 \
+    MAX_MODEL_LEN=32768 \
+    MAX_NUM_SEQS=8 \
+    MAX_NUM_BATCHED_TOKENS=65536 \
+    MAX_LORA_RANK=320 \
+    MAX_LORAS=2 \
+    LORA_EXTRA_VOCAB_SIZE=0 \
+    LIMIT_AUDIO_PER_PROMPT=1 \
+    LIMIT_IMAGE_PER_PROMPT=8 \
+    VLLM_USE_EAGER=true \
+    VLLM_USE_V1=0 \
+    LOG_LEVEL=INFO
+
+# Expose the vLLM API port
+EXPOSE 8000
+
+# Use custom entrypoint for LoRA auto-discovery
+ENTRYPOINT ["/app/entrypoint.sh"]

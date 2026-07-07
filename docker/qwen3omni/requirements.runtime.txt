@@ -1,0 +1,38 @@
+# Runtime-only requirements. Do NOT add torch, vllm, xformers, flash-attn here.
+# Web (Flask stack installed separately with --no-deps to avoid blinker conflicts)
+
+# Qwen utils and misc
+qwen-omni-utils
+pybase64
+
+# IO / media
+soundfile==0.13.1
+librosa
+lazy-loader
+av
+pillow
+opencv-python-headless
+
+# Networking / async
+requests
+httpx
+uvicorn
+uvloop
+python-multipart
+
+# Serialization / utility
+pydantic>=2.0
+safetensors
+sentencepiece
+orjson
+fsspec
+
+# Monitoring/metrics
+prometheus-client
+wandb
+pynvml
+
+# Optional: keep these lightweight helpers
+tqdm
+psutil
+packaging

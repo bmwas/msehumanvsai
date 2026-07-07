@@ -1,0 +1,128 @@
+# =============================================================================
+# Phi-4 Multimodal vLLM Server Configuration
+# =============================================================================
+# This file configures the Phi-4-multimodal-instruct vLLM server and
+# compatibility proxy for use with qwen3omni's run_all_surveys_longitudinal.py
+#
+# GPU Setup:
+#   GPU 0 = Blackwell RTX PRO 6000 (96GB) - Reserved for other workloads
+#   GPU 1 = Ada RTX 6000 (48GB) - Used by this server
+#
+# =============================================================================
+
+# =============================================================================
+# Hugging Face Authentication (REQUIRED for model downloads)
+# =============================================================================
+HUGGINGFACE_TOKEN=
+
+# =============================================================================
+# API Authentication
+# =============================================================================
+API_TOKEN=
+
+# =============================================================================
+# Model Configuration
+# =============================================================================
+MODEL_PATH=microsoft/Phi-4-multimodal-instruct
+
+# =============================================================================
+# GPU Selection
+# =============================================================================
+# GPU device index on host (1 = Ada RTX 6000 48GB)
+PHI4_GPU_DEVICE=1
+
+# =============================================================================
+# Port Configuration
+# =============================================================================
+# External port for the compatibility proxy (what clients connect to)
+PHI4_PORT=5200
+
+# Internal port for vLLM backend (proxy forwards to this)
+VLLM_INTERNAL_PORT=8000
+
+# =============================================================================
+# vLLM Memory Configuration (tuned for 48GB VRAM)
+# =============================================================================
+# GPU memory utilization (0.0 to 1.0)
+# 0.90 leaves headroom for LoRA adapters and system overhead
+GPU_MEMORY_UTILIZATION=0.90
+
+# Maximum model context length (tokens)
+MAX_MODEL_LEN=32768
+
+# Maximum concurrent sequences
+# Lower value = more memory per sequence = longer context support
+MAX_NUM_SEQS=8
+
+# Maximum batched tokens
+MAX_NUM_BATCHED_TOKENS=65536
+
+# =============================================================================
+# LoRA Configuration
+# =============================================================================
+# Maximum LoRA rank (Phi-4-multimodal uses rank 320)
+MAX_LORA_RANK=320
+
+# Maximum number of LoRA adapters (speech + vision = 2)
+MAX_LORAS=2
+
+# Extra vocabulary size for LoRA (0 for Phi-4)
+LORA_EXTRA_VOCAB_SIZE=0
+
+# =============================================================================
+# Multimodal Limits
+# =============================================================================
+# Maximum audio inputs per prompt
+LIMIT_AUDIO_PER_PROMPT=1
+
+# Maximum images per prompt (extracted from video frames)
+LIMIT_IMAGE_PER_PROMPT=8
+
+# =============================================================================
+# Video-to-Image Conversion (Proxy Settings)
+# =============================================================================
+# Number of frames to extract from each video segment
+VIDEO_MAX_FRAMES=8
+
+# JPEG quality for extracted frames (0-100)
+FRAME_JPEG_QUALITY=85
+
+# Maximum frame dimension (frames are resized if larger)
+FRAME_MAX_DIMENSION=1024
+
+# =============================================================================
+# Sampling
+# =============================================================================
+# Temperature (0.1 = near-deterministic, good for clinical assessment)
+TEMPERATURE=0.1
+
+# =============================================================================
+# Request Timeouts
+# =============================================================================
+# Timeout for requests to vLLM backend (seconds)
+VLLM_REQUEST_TIMEOUT=600
+
+# Timeout for proxy health checks (seconds)
+HEALTH_CHECK_TIMEOUT=10
+
+# =============================================================================
+# Logging
+# =============================================================================
+LOG_LEVEL=INFO
+
+# =============================================================================
+# PyTorch Memory Optimization
+# =============================================================================
+PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True
+
+# Enable TensorFloat-32 for better performance on Ada GPUs
+NVIDIA_TF32_OVERRIDE=1
+
+# =============================================================================
+# vLLM Engine Settings
+# =============================================================================
+# Use eager mode to avoid CUDA graph issues with LoRA
+VLLM_USE_EAGER=true
+
+# Disable V1 engine for compatibility
+VLLM_USE_V1=0

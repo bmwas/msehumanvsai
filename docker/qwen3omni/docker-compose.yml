@@ -1,0 +1,76 @@
+version: "3.8"
+
+# Docker Compose for Qwen3-Omni on NVIDIA Blackwell (RTX PRO 6000, 96GB VRAM)
+# 
+# SETUP:
+#   1. Copy example_env.txt to .env:
+#      cp example_env.txt .env
+#   2. Edit .env (model path, HF token, etc.). GPU is fixed to device 0 (Blackwell).
+#   3. Run:
+#      docker compose up
+
+services:
+  qwen3-omni-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: ghcr.io/bmwas/qwen3omni:blackwell-96gb
+    container_name: qwen3-omni-blackwell
+
+    ports:
+      - "${PORT:-5100}:5000"
+
+    env_file:
+      - .env
+
+    # CRITICAL: Override environment variables for 96GB VRAM
+    environment:
+      # GPU Selection: Blackwell at host index 0
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      - CUDA_VISIBLE_DEVICES=0
+      
+      # 96GB allows higher memory utilization (0.92-0.95 safe)
+      - GPU_MEMORY_UTILIZATION=${GPU_MEMORY_UTILIZATION:-0.92}
+      
+      # MASSIVE context window possible with 96GB!
+      # 32K = standard, 65K = large, 131K = huge
+      # The model supports up to 131072 tokens
+      - MAX_MODEL_LEN=${MAX_MODEL_LEN:-65536}
+      
+      # More parallel sequences with 96GB VRAM
+      - MAX_NUM_SEQS=${MAX_NUM_SEQS:-32}
+      
+      # Larger batching window
+      - MAX_NUM_BATCHED_TOKENS=${MAX_NUM_BATCHED_TOKENS:-131072}
+      
+      # Enable chunked prefill for better efficiency
+      - ENABLE_CHUNKED_PREFILL=true
+      
+      # Video processing can use more frames with larger context
+      - VIDEO_MAX_FRAMES=${VIDEO_MAX_FRAMES:-32}
+      - VIDEO_MIN_FRAMES=${VIDEO_MIN_FRAMES:-16}
+      
+      # PyTorch memory optimization
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+    restart: unless-stopped
+    
+    # Shared memory for PyTorch
+    shm_size: '8g'
+    
+    # GPU access - only device 0 (Blackwell)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+
+    volumes:
+      # Cache Hugging Face models
+      - ./hf-cache:/root/.cache/huggingface
+      # Optionally mount test videos
+      - ./test_videos:/data/test_videos:ro
+
